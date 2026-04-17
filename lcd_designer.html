@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LCD Eye Designer — LCD2004 20×4</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #111;
+  color: #aaffaa;
+  font-family: 'Courier New', monospace;
+  padding: 24px;
+  font-size: 13px;
+  user-select: none;
+}
+h1 { color: #00ff88; margin-bottom: 6px; font-size: 17px; letter-spacing: 1px; }
+h2 { color: #00cc66; margin-bottom: 10px; font-size: 13px; border-bottom: 1px solid #1a3322;
+     padding-bottom: 5px; margin-top: 24px; }
+
+/* ── CHARS ── */
+.chars-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.char-slot { text-align: center; }
+.char-label {
+  font-size: 11px; padding: 2px 10px; border-radius: 3px;
+  cursor: pointer; border: 2px solid #1a3322; margin-bottom: 5px; display: inline-block;
+}
+.char-label.active { border-color: #00ff88; color: #00ff88; background: #003311; }
+.char-grid {
+  display: grid; grid-template-columns: repeat(5, 22px);
+  gap: 2px; background: #0a150a; padding: 5px;
+  border: 1px solid #1a3322; border-radius: 3px; cursor: crosshair;
+}
+.cpx { width: 22px; height: 22px; border-radius: 2px; border: 1px solid #112211; }
+.cpx.on  { background: #00ff88; box-shadow: 0 0 4px #00ff8866; }
+.cpx.off { background: #0a150a; }
+.char-actions { display: flex; gap: 4px; margin-top: 5px; justify-content: center; }
+
+/* ── BUTTONS ── */
+.btn {
+  background: #0d2218; border: 1px solid #00aa55; color: #00aa55;
+  padding: 5px 12px; cursor: pointer; border-radius: 3px;
+  font-family: monospace; font-size: 11px; transition: all 0.1s;
+}
+.btn:hover { background: #00aa55; color: #111; }
+.btn.active { background: #00ff88; border-color: #00ff88; color: #111; font-weight: bold; }
+.btn.danger { border-color: #aa3333; color: #aa3333; }
+.btn.danger:hover { background: #aa3333; color: #fff; }
+
+/* ── PLACE BAR ── */
+.place-bar {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  background: #0a1a0a; border: 1px solid #1a3322; border-radius: 4px;
+  padding: 8px 12px; margin-top: 12px;
+}
+.place-bar .lbl { color: #668866; font-size: 11px; }
+.thumb-canvas { border: 2px solid #1a3322; cursor: pointer; border-radius: 2px; }
+.thumb-canvas.selected { border-color: #00ff88; }
+.erase-btn {
+  width: 28px; height: 42px; border: 2px solid #1a3322; background: #0a150a;
+  color: #664444; font-size: 16px; cursor: pointer; border-radius: 2px;
+  display: flex; align-items: center; justify-content: center;
+}
+.erase-btn.selected { border-color: #aa3333; color: #ff4444; }
+
+/* ── LCD ── */
+.lcd-outer { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; }
+.row-labels { display: flex; flex-direction: column; gap: 4px; padding-top: 2px; }
+.row-label {
+  height: 38px; display: flex; align-items: center; justify-content: flex-end;
+  color: #335533; font-size: 10px; min-width: 36px; padding-right: 4px;
+}
+.lcd-wrap {
+  background: #2a4518; border: 5px solid #1a2e0e; border-radius: 6px;
+  padding: 10px 12px; display: inline-block;
+  box-shadow: inset 0 0 12px rgba(0,0,0,0.5), 0 0 30px rgba(0,255,100,0.08);
+}
+.lcd-row { display: flex; gap: 2px; margin-bottom: 4px; }
+.lcd-row:last-child { margin-bottom: 0; }
+.lcd-cell {
+  border: 1px solid rgba(0,0,0,0.2); cursor: crosshair; position: relative;
+  flex-shrink: 0;
+}
+.lcd-cell:hover::after {
+  content: ''; position: absolute; inset: 0;
+  border: 1px solid rgba(0,255,136,0.5); pointer-events: none;
+}
+
+/* ── FRAMES ── */
+.frames-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.frame-btn {
+  padding: 4px 12px; border: 1px solid #1a3322; background: #0a1a0a;
+  color: #668866; cursor: pointer; border-radius: 3px; font-family: monospace; font-size: 11px;
+}
+.frame-btn.active { border-color: #00ff88; color: #00ff88; background: #002211; }
+.frame-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+input[type=number], input[type=text] {
+  background: #0a1a0a; border: 1px solid #1a3322; color: #aaffaa;
+  padding: 4px 8px; border-radius: 3px; font-family: monospace; font-size: 12px;
+}
+input[type=number] { width: 65px; }
+input[type=text]   { width: 180px; }
+
+/* ── SAVE/LOAD ── */
+.save-section { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; margin-top: 8px; }
+.saves-list {
+  background: #0a1a0a; border: 1px solid #1a3322; border-radius: 4px;
+  min-width: 220px; max-height: 160px; overflow-y: auto;
+}
+.save-item {
+  display: flex; align-items: center; padding: 5px 8px; gap: 6px;
+  border-bottom: 1px solid #112211; cursor: pointer;
+}
+.save-item:last-child { border-bottom: none; }
+.save-item:hover { background: #0d2218; }
+.save-item .save-name { flex: 1; color: #aaffaa; font-size: 12px; }
+.save-item .save-date { color: #446644; font-size: 10px; }
+.save-item .del-btn { color: #663333; cursor: pointer; font-size: 14px; padding: 0 3px; }
+.save-item .del-btn:hover { color: #ff4444; }
+.save-empty { padding: 12px; color: #335533; font-size: 11px; text-align: center; }
+
+/* ── CODE ── */
+#code-out {
+  background: #080808; border: 1px solid #1a3322; padding: 12px; border-radius: 4px;
+  font-size: 11px; line-height: 1.7; max-height: 260px; overflow-y: auto;
+  white-space: pre; color: #77ee99; margin-top: 8px;
+}
+.code-toolbar { display: flex; gap: 8px; margin-top: 8px; }
+
+/* ── TIP ── */
+.tip {
+  background: #0a1f0a; border: 1px solid #1a3322; border-radius: 4px;
+  padding: 8px 12px; font-size: 11px; color: #668866; margin-top: 8px; line-height: 1.6;
+}
+</style>
+</head>
+<body>
+
+<h1>LCD EYE DESIGNER — SainSmart LCD2004 (20×4)</h1>
+<div class="tip">
+  <b style="color:#00cc66">How it works:</b>
+  Design up to 8 custom characters (5×8 px each) → place them on the 20×4 LCD grid → add animation frames → save with a name → copy Arduino code.<br>
+  <b>Eyes tip:</b> Use 2–3 chars wide × 2 rows tall per eye. Blink = duplicate frame, swap top row char.
+</div>
+
+<!-- ══ CHAR EDITORS ══ -->
+<h2>Custom Characters (8 slots · 5×8 pixels each)</h2>
+<div class="chars-row" id="chars-row"></div>
+
+<!-- ══ PLACE BAR ══ -->
+<div class="place-bar" id="place-bar">
+  <span class="lbl">Place on LCD →</span>
+  <div id="thumbs"></div>
+  <div class="erase-btn" id="erase-btn" title="Erase cell">✕</div>
+  <span class="lbl" style="margin-left:6px">· Right-click cell = erase</span>
+</div>
+
+<!-- ══ LCD PREVIEW ══ -->
+<h2>LCD Preview — <span id="frame-label">Frame 1</span></h2>
+<div class="lcd-outer">
+  <div class="row-labels">
+    <div class="row-label">Row 0</div>
+    <div class="row-label">Row 1</div>
+    <div class="row-label">Row 2</div>
+    <div class="row-label">Row 3</div>
+  </div>
+  <div class="lcd-wrap">
+    <div id="lcd-grid"></div>
+  </div>
+</div>
+
+<!-- ══ FRAMES ══ -->
+<h2>Animation Frames</h2>
+<div class="frames-row" id="frames-row"></div>
+<div class="frame-controls">
+  <label>Duration: <input type="number" id="dur-input" value="500" min="50" max="9999"> ms</label>
+  <button class="btn" onclick="addFrame()">+ Add Frame</button>
+  <button class="btn" onclick="dupFrame()">Duplicate</button>
+  <button class="btn danger" onclick="delFrame()">Delete</button>
+  <button class="btn" id="play-btn" onclick="togglePlay()">▶ Play</button>
+  <button class="btn" onclick="clearLcd()">Clear LCD</button>
+</div>
+
+<!-- ══ SAVE / LOAD ══ -->
+<h2>Save / Load Animations</h2>
+<div class="save-section">
+  <div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+      <input type="text" id="anim-name" placeholder="Animation name (e.g. eyes_blink)">
+      <button class="btn" onclick="saveAnim()">💾 Save</button>
+    </div>
+    <div style="color:#446644;font-size:11px;margin-bottom:4px;">Saved animations:</div>
+    <div class="saves-list" id="saves-list"></div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;">
+    <button class="btn" onclick="exportJSON()">⬇ Export JSON</button>
+    <label class="btn" style="cursor:pointer;text-align:center;">
+      ⬆ Import JSON
+      <input type="file" accept=".json" onchange="importJSON(event)" style="display:none">
+    </label>
+  </div>
+</div>
+
+<!-- ══ CODE ══ -->
+<h2>Generated Arduino Code</h2>
+<div class="code-toolbar">
+  <button class="btn" onclick="copyCode()">📋 Copy Code</button>
+  <button class="btn" onclick="genCode()">↻ Refresh</button>
+</div>
+<div id="code-out"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════
+const NC=8, CR=8, CC=5, LR=4, LC=20;
+let chars  = Array.from({length:NC}, () => new Array(CR).fill(0));
+let frames = [newFrame()];
+let fi     = 0;
+let placing = 0;
+let dragMode = null;
+let lcdDrag  = false;
+
+function newFrame(dur=500) {
+  return { duration:dur, layout:Array.from({length:LR}, ()=>new Array(LC).fill(-1)) };
+}
+function getBit(b,col)    { return (b>>(4-col))&1; }
+function setBit(b,col,v)  { const s=4-col; return v ? b|(1<<s) : b&~(1<<s); }
+function isUsed(c) { return frames.some(f=>f.layout.some(r=>r.includes(c))); }
+
+// ═══════════════════════════════════════════════════
+// CHAR EDITORS
+// ═══════════════════════════════════════════════════
+function buildChars() {
+  const wrap = document.getElementById('chars-row');
+  wrap.innerHTML = '';
+  for (let c=0; c<NC; c++) {
+    const slot = document.createElement('div');
+    slot.className = 'char-slot';
+
+    const lbl = document.createElement('div');
+    lbl.className = `char-label ${placing===c?'active':''}`;
+    lbl.textContent = `Char ${c}`;
+    lbl.onclick = () => { placing=c; buildChars(); buildThumbs(); };
+    slot.appendChild(lbl);
+
+    const grid = document.createElement('div');
+    grid.className = 'char-grid';
+    for (let r=0; r<CR; r++)
+      for (let col=0; col<CC; col++) {
+        const px = document.createElement('div');
+        px.className = `cpx ${getBit(chars[c][r],col)?'on':'off'}`;
+        px.addEventListener('mousedown', e => {
+          e.preventDefault();
+          const cur = getBit(chars[c][r],col);
+          dragMode = cur?'off':'on';
+          chars[c][r] = setBit(chars[c][r],col,dragMode==='on'?1:0);
+          buildChars(); buildThumbs(); refreshLcd(); genCode();
+        });
+        px.addEventListener('mouseover', () => {
+          if (dragMode) {
+            chars[c][r] = setBit(chars[c][r],col,dragMode==='on'?1:0);
+            buildChars(); buildThumbs(); refreshLcd(); genCode();
+          }
+        });
+        grid.appendChild(px);
+      }
+    slot.appendChild(grid);
+
+    const acts = document.createElement('div');
+    acts.className = 'char-actions';
+    const clrBtn = document.createElement('button');
+    clrBtn.className='btn'; clrBtn.textContent='Clear';
+    clrBtn.onclick = () => { chars[c].fill(0); buildChars(); buildThumbs(); refreshLcd(); genCode(); };
+    acts.appendChild(clrBtn);
+    slot.appendChild(acts);
+    wrap.appendChild(slot);
+  }
+}
+document.addEventListener('mouseup', () => { dragMode=null; lcdDrag=false; });
+
+// ═══════════════════════════════════════════════════
+// THUMBNAILS
+// ═══════════════════════════════════════════════════
+const TW=CC*4, TH=CR*4;
+function buildThumbs() {
+  const wrap = document.getElementById('thumbs');
+  wrap.innerHTML = '';
+  for (let c=0; c<NC; c++) {
+    const canvas = document.createElement('canvas');
+    canvas.width=TW; canvas.height=TH;
+    canvas.className = `thumb-canvas ${placing===c?'selected':''}`;
+    canvas.title = `Place Char ${c}`;
+    canvas.style.cssText = `width:${TW}px;height:${TH}px;`;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle='#2a4518'; ctx.fillRect(0,0,TW,TH);
+    for (let r=0;r<CR;r++)
+      for (let col=0;col<CC;col++) {
+        ctx.fillStyle = getBit(chars[c][r],col)?'#b0ffb0':'#2a4518';
+        ctx.fillRect(col*4,r*4,3,3);
+      }
+    ctx.fillStyle='rgba(0,180,60,0.5)'; ctx.font='7px monospace';
+    ctx.fillText(c,1,8);
+    canvas.onclick = () => { placing=c; buildThumbs(); buildChars(); };
+    wrap.appendChild(canvas);
+  }
+  const eb = document.getElementById('erase-btn');
+  eb.className = `erase-btn ${placing===-1?'selected':''}`;
+  eb.onclick = () => { placing=-1; buildThumbs(); buildChars(); };
+}
+
+// ═══════════════════════════════════════════════════
+// LCD GRID
+// ═══════════════════════════════════════════════════
+const CW=22, CH=36, PPW=4, PPH=4;
+function buildLcd() {
+  const grid = document.getElementById('lcd-grid');
+  grid.innerHTML = '';
+  for (let r=0;r<LR;r++) {
+    const row = document.createElement('div');
+    row.className = 'lcd-row';
+    for (let c=0;c<LC;c++) {
+      const cell = document.createElement('div');
+      cell.className = 'lcd-cell';
+      cell.style.width = CW+'px'; cell.style.height = CH+'px';
+      const canvas = document.createElement('canvas');
+      canvas.width=CW; canvas.height=CH;
+      canvas.id = `lc-${r}-${c}`;
+      cell.appendChild(canvas);
+      cell.addEventListener('mousedown', e => {
+        e.preventDefault(); lcdDrag=true;
+        setLcdCell(r,c, e.button===2?-1:placing);
+      });
+      cell.addEventListener('mouseover', () => {
+        if (lcdDrag) setLcdCell(r,c,placing===-1?-1:placing);
+      });
+      cell.addEventListener('contextmenu', e => { e.preventDefault(); setLcdCell(r,c,-1); });
+      row.appendChild(cell);
+    }
+    grid.appendChild(row);
+  }
+  refreshLcd();
+}
+
+function setLcdCell(r,c,val) {
+  frames[fi].layout[r][c]=val; drawCell(r,c); genCode();
+}
+
+function drawCell(r,c) {
+  const canvas = document.getElementById(`lc-${r}-${c}`);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const val = frames[fi].layout[r][c];
+  ctx.fillStyle='#2a4518'; ctx.fillRect(0,0,CW,CH);
+  if (val===-1) return;
+  if (val>=0 && val<8) {
+    const cd=chars[val];
+    for (let row=0;row<CR;row++)
+      for (let col=0;col<CC;col++) {
+        ctx.fillStyle = getBit(cd[row],col)?'#c8ffc8':'#2a4518';
+        ctx.fillRect(1+col*PPW, 1+row*PPH, PPW-1, PPH-1);
+      }
+    ctx.fillStyle='rgba(0,200,80,0.4)'; ctx.font='7px monospace';
+    ctx.fillText(val,1,8);
+  } else if (val>=32) {
+    ctx.fillStyle='#c8ffc8';
+    ctx.font=`bold 18px monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(String.fromCharCode(val),CW/2,CH/2);
+  }
+}
+function refreshLcd() {
+  for (let r=0;r<LR;r++) for (let c=0;c<LC;c++) drawCell(r,c);
+}
+
+// ═══════════════════════════════════════════════════
+// ROW LABEL HEIGHTS (sync with LCD)
+// ═══════════════════════════════════════════════════
+function syncRowLabels() {
+  const labels = document.querySelectorAll('.row-label');
+  labels.forEach(l => { l.style.height = (CH+4+2)+'px'; }); // CH + gap + border
+}
+
+// ═══════════════════════════════════════════════════
+// FRAMES
+// ═══════════════════════════════════════════════════
+function buildFrames() {
+  const wrap = document.getElementById('frames-row');
+  wrap.innerHTML = '';
+  frames.forEach((f,i) => {
+    const btn = document.createElement('button');
+    btn.className=`frame-btn ${i===fi?'active':''}`;
+    btn.textContent=`Frame ${i+1}  ${f.duration}ms`;
+    btn.onclick=()=>{ fi=i; buildFrames(); refreshLcd(); };
+    wrap.appendChild(btn);
+  });
+  document.getElementById('dur-input').value = frames[fi].duration;
+  document.getElementById('frame-label').textContent = `Frame ${fi+1}`;
+}
+document.getElementById('dur-input').addEventListener('input',e=>{
+  frames[fi].duration=parseInt(e.target.value)||500; buildFrames(); genCode();
+});
+function addFrame()  { frames.push(newFrame()); fi=frames.length-1; buildFrames(); refreshLcd(); genCode(); }
+function dupFrame()  {
+  const cp={duration:frames[fi].duration,layout:frames[fi].layout.map(r=>[...r])};
+  frames.splice(fi+1,0,cp); fi++;
+  buildFrames(); refreshLcd(); genCode();
+}
+function delFrame()  {
+  if(frames.length===1) return;
+  frames.splice(fi,1); if(fi>=frames.length) fi=frames.length-1;
+  buildFrames(); refreshLcd(); genCode();
+}
+function clearLcd()  {
+  frames[fi].layout=Array.from({length:LR},()=>new Array(LC).fill(-1));
+  refreshLcd(); genCode();
+}
+
+// ═══════════════════════════════════════════════════
+// PLAY
+// ═══════════════════════════════════════════════════
+let playing=false, playTimer=null;
+function togglePlay() {
+  playing=!playing;
+  const btn=document.getElementById('play-btn');
+  if(playing){btn.textContent='⏹ Stop';btn.classList.add('active');playStep();}
+  else{btn.textContent='▶ Play';btn.classList.remove('active');clearTimeout(playTimer);}
+}
+function playStep() {
+  if(!playing) return;
+  buildFrames(); refreshLcd();
+  const dur=frames[fi].duration;
+  fi=(fi+1)%frames.length;
+  playTimer=setTimeout(playStep,dur);
+}
+
+// ═══════════════════════════════════════════════════
+// SAVE / LOAD
+// ═══════════════════════════════════════════════════
+const LS_KEY = 'lcd-animations';
+
+function getSaves() { return JSON.parse(localStorage.getItem(LS_KEY)||'{}'); }
+function putSaves(s) { localStorage.setItem(LS_KEY,JSON.stringify(s)); }
+
+function saveAnim() {
+  const name = document.getElementById('anim-name').value.trim();
+  if (!name) { alert('Enter an animation name first.'); return; }
+  const saves = getSaves();
+  saves[name] = {
+    name, chars, frames,
+    savedAt: new Date().toLocaleString()
+  };
+  putSaves(saves);
+  buildSavesList();
+}
+
+function loadAnim(name) {
+  const data = getSaves()[name];
+  if (!data) return;
+  chars  = data.chars.map(c => [...c]);
+  frames = data.frames.map(f => ({duration:f.duration, layout:f.layout.map(r=>[...r])}));
+  fi = 0;
+  document.getElementById('anim-name').value = name;
+  buildChars(); buildThumbs(); buildLcd(); buildFrames(); genCode();
+}
+
+function deleteAnim(name) {
+  const saves = getSaves();
+  delete saves[name];
+  putSaves(saves);
+  buildSavesList();
+}
+
+function buildSavesList() {
+  const wrap = document.getElementById('saves-list');
+  const saves = getSaves();
+  const names = Object.keys(saves);
+  if (!names.length) {
+    wrap.innerHTML = '<div class="save-empty">No saved animations yet.</div>';
+    return;
+  }
+  wrap.innerHTML = '';
+  names.forEach(name => {
+    const item = document.createElement('div');
+    item.className = 'save-item';
+    item.innerHTML = `
+      <span class="save-name">${name}</span>
+      <span class="save-date">${saves[name].savedAt||''}</span>
+      <span class="del-btn" title="Delete" onclick="deleteAnim('${name.replace(/'/g,"\\'")}');event.stopPropagation()">✕</span>
+    `;
+    item.onclick = () => loadAnim(name);
+    wrap.appendChild(item);
+  });
+}
+
+function exportJSON() {
+  const name = document.getElementById('anim-name').value.trim() || 'lcd_animation';
+  const data = JSON.stringify({name,chars,frames}, null, 2);
+  const a = document.createElement('a');
+  a.href = 'data:application/json,' + encodeURIComponent(data);
+  a.download = name + '.json';
+  a.click();
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      chars  = data.chars.map(c=>[...c]);
+      frames = data.frames.map(f=>({duration:f.duration,layout:f.layout.map(r=>[...r])}));
+      fi = 0;
+      document.getElementById('anim-name').value = data.name || file.name.replace('.json','');
+      buildChars(); buildThumbs(); buildLcd(); buildFrames(); genCode();
+    } catch(err) { alert('Invalid JSON file: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ═══════════════════════════════════════════════════
+// CODE GENERATION
+// ═══════════════════════════════════════════════════
+function genCode() {
+  const animName = (document.getElementById('anim-name').value.trim() || 'idle').replace(/\W+/g,'_');
+  let out = '';
+  out += `// Animation: "${animName}" — generated by LCD Eye Designer\n`;
+  out += `// Paste into claude_monitor.ino, replace showIdle()\n\n`;
+  out += `#include <Wire.h>\n#include <LiquidCrystal_I2C.h>\n`;
+  out += `LiquidCrystal_I2C lcd(0x3F, 20, 4);\n\n`;
+
+  out += `// ─── Custom Characters ───────────────────────\n`;
+  for (let c=0;c<NC;c++) {
+    if (!isUsed(c)) continue;
+    out += `byte ch${c}[8] = { `;
+    out += chars[c].map(b=>`B${b.toString(2).padStart(8,'0')}`).join(', ');
+    out += ` };\n`;
+  }
+
+  out += `\n// ─── Frames ──────────────────────────────────\n`;
+  for (let f=0;f<frames.length;f++) {
+    out += `void ${animName}_frame${f+1}() {\n  lcd.clear();\n`;
+    const layout=frames[f].layout;
+    for (let r=0;r<LR;r++) {
+      let c=0;
+      while (c<LC) {
+        const v=layout[r][c];
+        if (v===-1){c++;continue;}
+        out+=`  lcd.setCursor(${c},${r}); `;
+        if (v>=0&&v<8) {
+          out+=`lcd.write(byte(${v}));\n`; c++;
+        } else {
+          let txt='';
+          while(c<LC&&layout[r][c]>=32&&layout[r][c]<127){txt+=String.fromCharCode(layout[r][c]);c++;}
+          out+=`lcd.print("${txt.replace(/\\/g,'\\\\').replace(/"/g,'\\"')}");\n`;
+        }
+      }
+    }
+    out+=`}\n\n`;
+  }
+
+  out+=`// ─── Animation Runner ─────────────────────────\n`;
+  out+=`const int ${animName.toUpperCase()}_FRAMES = ${frames.length};\n`;
+  out+=`unsigned int ${animName}Dur[${frames.length}] = { ${frames.map(f=>f.duration).join(', ')} };\n`;
+  out+=`void (*${animName}Funcs[${frames.length}])() = { `;
+  out+=frames.map((_,i)=>`${animName}_frame${i+1}`).join(', ');
+  out+=` };\n\n`;
+
+  out+=`void setup() {\n  lcd.init(); lcd.backlight();\n`;
+  for(let c=0;c<NC;c++) if(isUsed(c)) out+=`  lcd.createChar(${c},ch${c});\n`;
+  out+=`}\n\n`;
+
+  out+=`// ─── In your loop() ──────────────────────────\n`;
+  out+=`int ${animName}Idx = 0;\nunsigned long ${animName}Time = 0;\n\n`;
+  out+=`void runIdleAnimation() {\n`;
+  out+=`  if (millis()-${animName}Time >= ${animName}Dur[${animName}Idx]) {\n`;
+  out+=`    ${animName}Time = millis();\n`;
+  out+=`    ${animName}Funcs[${animName}Idx]();\n`;
+  out+=`    ${animName}Idx = (${animName}Idx+1) % ${animName.toUpperCase()}_FRAMES;\n`;
+  out+=`  }\n}\n`;
+
+  document.getElementById('code-out').textContent = out;
+}
+
+function copyCode() {
+  navigator.clipboard.writeText(document.getElementById('code-out').textContent).then(()=>{
+    const btn=event.target, orig=btn.textContent;
+    btn.textContent='✓ Copied!';
+    setTimeout(()=>btn.textContent=orig,1500);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+buildChars();
+buildThumbs();
+buildLcd();
+buildFrames();
+buildSavesList();
+syncRowLabels();
+genCode();
+</script>
+</body>
+</html>
