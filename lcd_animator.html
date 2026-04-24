@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LCD Animator</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #0e0e0e; color: #aaffaa;
+  font-family: 'Courier New', monospace; font-size: 13px;
+  padding: 20px 24px; user-select: none;
+}
+h1 { color: #00ff88; font-size: 17px; letter-spacing: 1px; margin-bottom: 4px; }
+.sub { color: #446644; font-size: 11px; margin-bottom: 20px; }
+h2 { color: #00cc66; font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+     border-bottom: 1px solid #1a3322; padding-bottom: 5px; margin: 20px 0 10px; }
+
+.btn {
+  background: #0d2218; border: 1px solid #00aa55; color: #00aa55;
+  padding: 5px 13px; cursor: pointer; border-radius: 3px;
+  font-family: monospace; font-size: 11px; transition: all 0.12s;
+}
+.btn:hover { background: #00aa55; color: #111; }
+.btn.hi  { border-color: #00ff88; color: #00ff88; background: #0a2218; }
+.btn.hi:hover { background: #00ff88; color: #000; }
+.btn.red { border-color: #883333; color: #883333; }
+.btn.red:hover { background: #883333; color: #fff; }
+.btn.on  { background: #00ff88; color: #000; border-color: #00ff88; }
+
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+label { color: #668866; font-size: 11px; }
+
+/* ── SIZE PRESETS ── */
+.size-btn {
+  padding: 4px 10px; border: 1px solid #1a3322; background: #0a1a0a;
+  color: #668866; cursor: pointer; border-radius: 3px; font-family: monospace; font-size: 11px;
+}
+.size-btn.on { border-color: #00ff88; color: #00ff88; background: #0a2218; }
+
+/* ── FRAME TABS ── */
+.frame-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+.ftab {
+  padding: 5px 14px; border: 1px solid #1a3322; background: #0a1a0a;
+  color: #668866; cursor: pointer; border-radius: 3px; font-family: monospace; font-size: 11px;
+  position: relative;
+}
+.ftab.on  { border-color: #00ff88; color: #00ff88; background: #0a2218; }
+.ftab .dur { font-size: 9px; color: #446644; display: block; text-align: center; }
+
+/* ── CANVAS ── */
+.canvas-wrap {
+  background: #1e3010; border: 3px solid #1a3322; border-radius: 4px;
+  padding: 8px; display: inline-block; cursor: crosshair;
+  box-shadow: 0 0 24px rgba(0,255,80,0.04);
+}
+#draw-canvas { display: block; image-rendering: pixelated; }
+
+.draw-row { display: flex; gap: 16px; align-items: flex-start; }
+
+/* ── TOOLS ── */
+.toolbox { display: flex; flex-direction: column; gap: 8px; min-width: 140px; }
+.tl { color: #446644; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 2px; }
+input[type=text], input[type=number] {
+  background: #0a1a0a; border: 1px solid #1a3322; color: #aaffaa;
+  padding: 4px 8px; border-radius: 3px; font-family: monospace; font-size: 12px;
+}
+input[type=text]   { width: 140px; }
+input[type=number] { width: 70px; }
+select {
+  background: #0a1a0a; border: 1px solid #1a3322; color: #aaffaa;
+  padding: 4px 8px; border-radius: 3px; font-family: monospace; font-size: 11px; width: 140px;
+}
+
+/* ── EXPORT ── */
+.export-box {
+  background: #060606; border: 1px solid #1a3322; border-radius: 3px;
+  padding: 10px 12px; font-size: 11px; line-height: 1.55;
+  max-height: 260px; overflow-y: auto; white-space: pre; color: #44bb66;
+  font-family: monospace;
+}
+
+/* ── IMPORT ── */
+textarea {
+  width: 100%; background: #060606; border: 1px solid #1a3322; color: #aaffaa;
+  padding: 10px; border-radius: 3px; font-family: monospace; font-size: 11px;
+  line-height: 1.5; resize: vertical; min-height: 110px;
+}
+textarea:focus { outline: none; border-color: #00aa55; }
+
+/* ── LCD PREVIEW ── */
+.lcd-wrap {
+  background: #2a4518; border: 5px solid #1a2e0e; border-radius: 5px;
+  padding: 10px 12px; display: inline-block;
+  box-shadow: inset 0 0 12px rgba(0,0,0,0.5), 0 0 24px rgba(0,255,80,0.06);
+}
+.lcd-row { display: flex; gap: 2px; margin-bottom: 4px; }
+.lcd-row:last-child { margin-bottom: 0; }
+
+/* ── CODE ── */
+#code-out {
+  background: #060606; border: 1px solid #1a3322; padding: 12px; border-radius: 3px;
+  font-size: 11px; line-height: 1.7; max-height: 280px; overflow-y: auto;
+  white-space: pre; color: #77ee99;
+}
+
+/* ── WORKFLOW ── */
+.wf {
+  display: flex; gap: 0; align-items: center; flex-wrap: wrap;
+  background: #0a1a0a; border: 1px solid #1a3322; border-radius: 3px;
+  padding: 8px 12px; margin-bottom: 18px;
+}
+.wf-s { font-size: 11px; color: #668866; padding: 3px 10px; }
+.wf-s b { color: #00ff88; }
+.wf-arrow { color: #1a3322; font-size: 16px; }
+
+/* ── FRAMES PREVIEW STRIP ── */
+.preview-strip { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.pthumb { text-align: center; cursor: pointer; }
+.pthumb canvas { border: 2px solid #1a3322; border-radius: 2px; display: block; }
+.pthumb canvas.on { border-color: #00ff88; }
+.pthumb .plbl { font-size: 9px; color: #446644; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<h1>LCD ANIMATOR</h1>
+<div class="sub">Draw keyframes yourself → export → Claude generates the full animation</div>
+
+<div class="wf">
+  <div class="wf-s"><b>1</b> Draw 2–3 keyframes</div><div class="wf-arrow">→</div>
+  <div class="wf-s"><b>2</b> Export for Claude</div><div class="wf-arrow">→</div>
+  <div class="wf-s"><b>3</b> Paste in chat</div><div class="wf-arrow">→</div>
+  <div class="wf-s"><b>4</b> Import response</div><div class="wf-arrow">→</div>
+  <div class="wf-s"><b>5</b> Copy Arduino code</div>
+</div>
+
+<!-- ══ SETTINGS ══ -->
+<h2>Figure Settings</h2>
+<div class="row">
+  <label>Size:</label>
+  <div id="size-row"></div>
+</div>
+<div class="row">
+  <label>Name:</label>
+  <input type="text" id="fig-name" value="my_figure">
+  <label style="margin-left:8px">Animation hint:</label>
+  <select id="anim-hint">
+    <option value="walk">Walk cycle</option>
+    <option value="run">Run cycle</option>
+    <option value="bounce">Bounce</option>
+    <option value="idle">Idle / breathe</option>
+    <option value="wave">Wave arm</option>
+    <option value="blink">Blink</option>
+    <option value="dance">Dance</option>
+    <option value="any">Let Claude decide</option>
+  </select>
+  <label style="margin-left:8px">Total frames Claude generates:</label>
+  <select id="total-frames">
+    <option value="4" selected>4</option>
+    <option value="6">6</option>
+    <option value="8">8</option>
+  </select>
+</div>
+
+<!-- ══ DRAW ══ -->
+<h2>Draw Keyframes</h2>
+
+<!-- Frame tabs -->
+<div class="frame-tabs" id="frame-tabs"></div>
+<div class="row">
+  <button class="btn hi" onclick="addFrame()">+ Add keyframe</button>
+  <button class="btn" onclick="dupFrame()">Duplicate</button>
+  <button class="btn red" onclick="delFrame()">Delete</button>
+  <label style="margin-left:8px">Frame label:</label>
+  <input type="text" id="frame-label-input" value="" style="width:120px" oninput="updateFrameLabel(this.value)">
+  <label style="margin-left:8px">Duration hint:</label>
+  <input type="number" id="dur-input" value="200" min="50" max="2000" step="50" oninput="updateDur(this.value)">
+  <label>ms</label>
+</div>
+
+<div class="draw-row">
+  <div>
+    <div class="canvas-wrap">
+      <canvas id="draw-canvas"></canvas>
+    </div>
+    <div style="color:#335533;font-size:10px;margin-top:5px;text-align:center">
+      Left-click draw · Right-click erase · Click+drag both
+    </div>
+  </div>
+
+  <div class="toolbox">
+    <div class="tl">Tools</div>
+    <div class="row" style="margin-bottom:0">
+      <button class="btn" onclick="clearFrame()">Clear</button>
+      <button class="btn" onclick="invertFrame()">Invert</button>
+    </div>
+    <div class="row" style="margin-bottom:0">
+      <button class="btn" onclick="shiftUp()">↑</button>
+      <button class="btn" onclick="shiftDown()">↓</button>
+      <button class="btn" onclick="shiftLeft()">←</button>
+      <button class="btn" onclick="shiftRight()">→</button>
+    </div>
+    <div class="row" style="margin-bottom:0">
+      <button class="btn" onclick="flipH()">Flip H</button>
+      <button class="btn" onclick="flipV()">Flip V</button>
+    </div>
+
+    <div class="tl" style="margin-top:8px">LCD position</div>
+    <div class="row" style="margin-bottom:0">
+      <label>Col:</label>
+      <input type="number" id="lcd-col" value="9" min="0" max="18" style="width:50px" oninput="refreshLcd()">
+      <label>Row:</label>
+      <input type="number" id="lcd-row" value="1" min="0" max="3" style="width:50px" oninput="refreshLcd()">
+    </div>
+  </div>
+</div>
+
+<!-- ══ PREVIEW ══ -->
+<h2>Preview</h2>
+<div class="row">
+  <button class="btn" id="play-btn" onclick="togglePlay()">▶ Play</button>
+  <label>Speed: <input type="number" id="speed" value="300" min="50" max="2000" style="width:60px"> ms</label>
+  <span id="play-info" style="color:#446644;font-size:11px"></span>
+</div>
+<div class="preview-strip" id="preview-strip"></div>
+<div class="lcd-wrap"><div id="lcd-grid"></div></div>
+
+<!-- ══ EXPORT ══ -->
+<h2>Export for Claude</h2>
+<div class="row">
+  <button class="btn hi" onclick="doExport()">📋 Copy Export</button>
+  <button class="btn" onclick="showExport()">Preview</button>
+</div>
+<div class="export-box" id="export-box">Click Preview or Copy Export...</div>
+
+<!-- ══ IMPORT ══ -->
+<h2>Import Claude's Animation</h2>
+<textarea id="import-txt" placeholder='Paste the JSON Claude gives you here...'></textarea>
+<div class="row" style="margin-top:6px">
+  <button class="btn hi" onclick="doImport()">⬇ Import</button>
+  <button class="btn" onclick="document.getElementById('import-txt').value=''">Clear</button>
+  <span id="import-status" style="font-size:11px;color:#668866"></span>
+</div>
+
+<!-- ══ CODE ══ -->
+<h2>Arduino Code</h2>
+<div class="row">
+  <button class="btn hi" onclick="genCode()">↻ Generate</button>
+  <button class="btn" onclick="copyCode()">📋 Copy</button>
+</div>
+<div id="code-out">// Draw keyframes and import Claude's animation first.</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════
+const PRESETS = [
+  {l:'1×1', wc:1, hc:1}, {l:'2×1', wc:2, hc:1}, {l:'3×1', wc:3, hc:1},
+  {l:'2×2', wc:2, hc:2}, {l:'3×2', wc:3, hc:2}, {l:'4×2', wc:4, hc:2},
+];
+const PX = 20;           // screen px per lcd-pixel
+const CW = 5, CH = 8;   // char dimensions in pixels
+const LR = 4, LC = 20;  // LCD rows/cols
+
+// ═══════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════
+let preset = PRESETS[4]; // 3×2 default
+let frames = [newFrame()];
+let fi     = 0;          // current frame index
+let drag   = false;
+let drawV  = 1;
+let playing = false, playTimer = null, playFi = 0;
+
+// imported animation (from Claude)
+let importedAnim = null;
+
+function newFrame(label='', dur=200) {
+  const rows = preset.hc * CH, cols = preset.wc * CW;
+  return {
+    label,
+    dur,
+    px: Array.from({length: rows}, () => new Array(cols).fill(0))
+  };
+}
+
+function curPx() { return frames[fi].px; }
+function rows()  { return preset.hc * CH; }
+function cols()  { return preset.wc * CW; }
+
+// ═══════════════════════════════════════════════════
+// SIZE PRESETS
+// ═══════════════════════════════════════════════════
+function buildSizes() {
+  const wrap = document.getElementById('size-row');
+  wrap.innerHTML = '';
+  PRESETS.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'size-btn' + (p === preset ? ' on' : '');
+    b.textContent = p.l + ' char' + (p.wc * p.hc > 1 ? 's' : '');
+    b.onclick = () => {
+      const old = frames.map(f => f.px);
+      preset = p;
+      frames = frames.map((f, i) => {
+        const nf = newFrame(f.label, f.dur);
+        const or = old[i];
+        for (let r = 0; r < Math.min(or.length, nf.px.length); r++)
+          for (let c = 0; c < Math.min(or[0].length, nf.px[0].length); c++)
+            nf.px[r][c] = or[r][c];
+        return nf;
+      });
+      buildSizes(); initCanvas(); buildTabs(); redraw(); buildStrip(); refreshLcd();
+    };
+    wrap.appendChild(b);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// CANVAS
+// ═══════════════════════════════════════════════════
+function initCanvas() {
+  const c = document.getElementById('draw-canvas');
+  c.width  = cols() * PX;
+  c.height = rows() * PX;
+  c.style.width  = c.width  + 'px';
+  c.style.height = c.height + 'px';
+}
+
+function redraw() {
+  const c   = document.getElementById('draw-canvas');
+  const ctx = c.getContext('2d');
+  const px  = curPx();
+
+  ctx.fillStyle = '#1e3010';
+  ctx.fillRect(0, 0, c.width, c.height);
+
+  // pixels
+  for (let r = 0; r < rows(); r++)
+    for (let cl = 0; cl < cols(); cl++) {
+      if (px[r][cl]) {
+        ctx.fillStyle = '#00ff88';
+        ctx.shadowColor = '#00ff88';
+        ctx.shadowBlur = 3;
+        ctx.fillRect(cl*PX+1, r*PX+1, PX-2, PX-2);
+        ctx.shadowBlur = 0;
+      }
+    }
+
+  // char cell borders (brighter)
+  ctx.strokeStyle = 'rgba(0,200,80,0.3)';
+  ctx.lineWidth = 1;
+  for (let cr = 0; cr <= preset.hc; cr++) {
+    ctx.beginPath(); ctx.moveTo(0, cr*CH*PX); ctx.lineTo(cols()*PX, cr*CH*PX); ctx.stroke();
+  }
+  for (let cc = 0; cc <= preset.wc; cc++) {
+    ctx.beginPath(); ctx.moveTo(cc*CW*PX, 0); ctx.lineTo(cc*CW*PX, rows()*PX); ctx.stroke();
+  }
+
+  // pixel grid (subtle)
+  ctx.strokeStyle = 'rgba(0,60,20,0.5)';
+  ctx.lineWidth = 0.5;
+  for (let r = 0; r <= rows(); r++) {
+    ctx.beginPath(); ctx.moveTo(0, r*PX); ctx.lineTo(cols()*PX, r*PX); ctx.stroke();
+  }
+  for (let cl = 0; cl <= cols(); cl++) {
+    ctx.beginPath(); ctx.moveTo(cl*PX, 0); ctx.lineTo(cl*PX, rows()*PX); ctx.stroke();
+  }
+}
+
+function canvasRC(e) {
+  const c    = document.getElementById('draw-canvas');
+  const rect = c.getBoundingClientRect();
+  return {
+    r:  Math.max(0, Math.min(rows()-1, Math.floor((e.clientY - rect.top)  / (rect.height / rows())))),
+    cl: Math.max(0, Math.min(cols()-1, Math.floor((e.clientX - rect.left) / (rect.width  / cols()))))
+  };
+}
+
+function setupCanvas() {
+  const c = document.getElementById('draw-canvas');
+  c.addEventListener('mousedown', e => {
+    e.preventDefault(); drag = true;
+    const {r, cl} = canvasRC(e);
+    drawV = e.button === 2 ? 0 : (curPx()[r][cl] ? 0 : 1);
+    curPx()[r][cl] = drawV;
+    redraw(); buildStrip(); refreshLcd();
+  });
+  c.addEventListener('mousemove', e => {
+    if (!drag) return;
+    const {r, cl} = canvasRC(e);
+    curPx()[r][cl] = drawV;
+    redraw(); buildStrip(); refreshLcd();
+  });
+  c.addEventListener('contextmenu', e => e.preventDefault());
+  document.addEventListener('mouseup', () => { drag = false; });
+}
+
+// ═══════════════════════════════════════════════════
+// FRAME OPS
+// ═══════════════════════════════════════════════════
+function addFrame() {
+  const nf = newFrame('', parseInt(document.getElementById('dur-input').value) || 200);
+  frames.splice(fi + 1, 0, nf);
+  fi++;
+  buildTabs(); redraw(); buildStrip(); refreshLcd();
+}
+
+function dupFrame() {
+  const src = frames[fi];
+  const nf = { label: src.label, dur: src.dur, px: src.px.map(r => [...r]) };
+  frames.splice(fi + 1, 0, nf);
+  fi++;
+  buildTabs(); redraw(); buildStrip(); refreshLcd();
+}
+
+function delFrame() {
+  if (frames.length === 1) return;
+  frames.splice(fi, 1);
+  if (fi >= frames.length) fi = frames.length - 1;
+  buildTabs(); redraw(); buildStrip(); refreshLcd();
+}
+
+function clearFrame()  { frames[fi].px = newFrame().px; redraw(); buildStrip(); refreshLcd(); }
+function invertFrame() { frames[fi].px = curPx().map(r => r.map(v => v ? 0 : 1)); redraw(); buildStrip(); refreshLcd(); }
+function flipH()       { frames[fi].px = curPx().map(r => [...r].reverse()); redraw(); buildStrip(); refreshLcd(); }
+function flipV()       { frames[fi].px = [...curPx()].reverse().map(r => [...r]); redraw(); buildStrip(); refreshLcd(); }
+
+function shiftUp() {
+  const px = curPx();
+  frames[fi].px = [...px.slice(1), new Array(cols()).fill(0)];
+  redraw(); buildStrip(); refreshLcd();
+}
+function shiftDown() {
+  const px = curPx();
+  frames[fi].px = [new Array(cols()).fill(0), ...px.slice(0, -1)];
+  redraw(); buildStrip(); refreshLcd();
+}
+function shiftLeft() {
+  frames[fi].px = curPx().map(r => [...r.slice(1), 0]);
+  redraw(); buildStrip(); refreshLcd();
+}
+function shiftRight() {
+  frames[fi].px = curPx().map(r => [0, ...r.slice(0, -1)]);
+  redraw(); buildStrip(); refreshLcd();
+}
+
+function updateFrameLabel(v) { frames[fi].label = v; buildTabs(); }
+function updateDur(v) { frames[fi].dur = parseInt(v) || 200; buildTabs(); }
+
+// ═══════════════════════════════════════════════════
+// FRAME TABS
+// ═══════════════════════════════════════════════════
+function buildTabs() {
+  const wrap = document.getElementById('frame-tabs');
+  wrap.innerHTML = '';
+  frames.forEach((f, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'ftab' + (i === fi ? ' on' : '');
+    const lbl = f.label || `KF ${i + 1}`;
+    btn.innerHTML = lbl + `<span class="dur">${f.dur}ms</span>`;
+    btn.onclick = () => {
+      fi = i;
+      document.getElementById('frame-label-input').value = frames[fi].label;
+      document.getElementById('dur-input').value = frames[fi].dur;
+      buildTabs(); redraw(); buildStrip(); refreshLcd();
+    };
+    wrap.appendChild(btn);
+  });
+  document.getElementById('frame-label-input').value = frames[fi].label;
+  document.getElementById('dur-input').value = frames[fi].dur;
+}
+
+// ═══════════════════════════════════════════════════
+// THUMBNAIL STRIP
+// ═══════════════════════════════════════════════════
+function buildStrip() {
+  const strip = document.getElementById('preview-strip');
+  strip.innerHTML = '';
+  const TW = cols() * 4, TH = rows() * 4;
+  frames.forEach((f, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'pthumb';
+    const c = document.createElement('canvas');
+    c.width = TW; c.height = TH;
+    c.style.cssText = `width:${TW}px;height:${TH}px;`;
+    c.className = i === fi ? 'on' : '';
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#1e3010'; ctx.fillRect(0, 0, TW, TH);
+    f.px.forEach((row, r) => row.forEach((v, cl) => {
+      if (v) { ctx.fillStyle = '#00ff88'; ctx.fillRect(cl*4, r*4, 3, 3); }
+    }));
+    c.onclick = () => {
+      fi = i;
+      document.getElementById('frame-label-input').value = frames[fi].label;
+      document.getElementById('dur-input').value = frames[fi].dur;
+      buildTabs(); redraw(); buildStrip(); refreshLcd();
+    };
+    wrap.appendChild(c);
+    const lbl = document.createElement('div');
+    lbl.className = 'plbl';
+    lbl.textContent = (f.label || `KF${i+1}`) + ' ' + f.dur + 'ms';
+    wrap.appendChild(lbl);
+    strip.appendChild(wrap);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// LCD PREVIEW
+// ═══════════════════════════════════════════════════
+const CELL_W = 22, CELL_H = 36, PPW = 4, PPH = 4;
+
+function buildLcd() {
+  const g = document.getElementById('lcd-grid');
+  g.innerHTML = '';
+  for (let r = 0; r < LR; r++) {
+    const row = document.createElement('div');
+    row.className = 'lcd-row';
+    for (let cl = 0; cl < LC; cl++) {
+      const cell = document.createElement('div');
+      cell.style.cssText = `width:${CELL_W}px;height:${CELL_H}px;position:relative;flex-shrink:0;border:1px solid rgba(0,0,0,0.2);`;
+      const cv = document.createElement('canvas');
+      cv.width = CELL_W; cv.height = CELL_H;
+      cv.id = `lc-${r}-${cl}`;
+      cell.appendChild(cv);
+      row.appendChild(cell);
+    }
+    g.appendChild(row);
+  }
+}
+
+function pixToBytes(px) {
+  // px is rows×cols pixels for one char (5×8)
+  return px.map(row => {
+    let b = 0;
+    row.forEach((v, ci) => { if (v) b |= (1 << (4 - ci)); });
+    return b;
+  });
+}
+
+function getBit(byte, col) { return (byte >> (4 - col)) & 1; }
+
+function drawLcdCell(r, cl, charBytes) {
+  const cv = document.getElementById(`lc-${r}-${cl}`);
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#2a4518'; ctx.fillRect(0, 0, CELL_W, CELL_H);
+  if (!charBytes) return;
+  for (let row = 0; row < 8; row++)
+    for (let col = 0; col < 5; col++) {
+      ctx.fillStyle = getBit(charBytes[row], col) ? '#c8ffc8' : '#2a4518';
+      ctx.fillRect(1 + col*PPW, 1 + row*PPH, PPW-1, PPH-1);
+    }
+}
+
+function refreshLcd() {
+  // clear all cells
+  for (let r = 0; r < LR; r++)
+    for (let cl = 0; cl < LC; cl++) drawLcdCell(r, cl, null);
+
+  if (importedAnim) {
+    renderImportedFrame(playFi < importedAnim.frames.length ? playFi : 0);
+    return;
+  }
+
+  const lcdCol = parseInt(document.getElementById('lcd-col').value) || 0;
+  const lcdRow = parseInt(document.getElementById('lcd-row').value) || 0;
+  const px     = curPx();
+
+  // split frame into char cells and render
+  for (let hc = 0; hc < preset.hc; hc++) {
+    for (let wc = 0; wc < preset.wc; wc++) {
+      const charPx = Array.from({length: CH}, (_, r) =>
+        Array.from({length: CW}, (_, c) => (px[hc*CH + r] || [])[wc*CW + c] || 0)
+      );
+      const bytes = pixToBytes(charPx);
+      drawLcdCell(lcdRow + hc, lcdCol + wc, bytes);
+    }
+  }
+}
+
+function renderImportedFrame(idx) {
+  if (!importedAnim || !importedAnim.frames[idx]) return;
+  const frame  = importedAnim.frames[idx];
+  const chars  = frame.chars || importedAnim.chars || [];
+  const layout = frame.layout || [];
+  for (let r = 0; r < LR; r++)
+    for (let cl = 0; cl < LC; cl++) {
+      const ci = (layout[r] || [])[cl];
+      drawLcdCell(r, cl, ci >= 0 ? chars[ci] : null);
+    }
+}
+
+// ═══════════════════════════════════════════════════
+// PLAYBACK
+// ═══════════════════════════════════════════════════
+function togglePlay() {
+  playing = !playing;
+  const btn = document.getElementById('play-btn');
+  if (playing) {
+    btn.textContent = '⏹ Stop'; btn.classList.add('on');
+    playFi = 0; playStep();
+  } else {
+    btn.textContent = '▶ Play'; btn.classList.remove('on');
+    clearTimeout(playTimer);
+  }
+}
+
+function playStep() {
+  if (!playing) return;
+  const source = importedAnim ? importedAnim.frames : frames;
+  const dur    = importedAnim
+    ? (source[playFi].duration || parseInt(document.getElementById('speed').value) || 300)
+    : (frames[playFi].dur || 300);
+
+  if (importedAnim) {
+    renderImportedFrame(playFi);
+  } else {
+    fi = playFi; buildTabs(); redraw(); buildStrip(); refreshLcd();
+  }
+
+  document.getElementById('play-info').textContent =
+    `Frame ${playFi + 1} / ${source.length}  (${dur}ms)`;
+
+  playFi = (playFi + 1) % source.length;
+  playTimer = setTimeout(playStep, dur);
+}
+
+// ═══════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════
+function buildExport() {
+  const name  = document.getElementById('fig-name').value.trim() || 'figure';
+  const hint  = document.getElementById('anim-hint').value;
+  const total = document.getElementById('total-frames').value;
+  const R = rows(), C = cols();
+
+  let out = `=== LCD ANIMATOR EXPORT ===\n`;
+  out += `Figure: "${name}"  |  Hint: ${hint}  |  Total frames wanted: ${total}\n`;
+  out += `Figure size: ${C}×${R}px  (${preset.wc} char${preset.wc>1?'s':''} wide × ${preset.hc} char${preset.hc>1?'s':''} tall)\n`;
+  out += `Char slots used: ${preset.wc * preset.hc} of 8  |  Each char: 5×8px\n`;
+  out += `LCD position: col ${document.getElementById('lcd-col').value}, row ${document.getElementById('lcd-row').value}\n\n`;
+  out += `I drew ${frames.length} keyframe${frames.length > 1 ? 's' : ''} to show the animation direction.\n`;
+  out += `Please generate ${total} frames total based on these keyframes.\n\n`;
+
+  frames.forEach((f, i) => {
+    const lbl = f.label || `Keyframe ${i + 1}`;
+    out += `--- ${lbl} (${f.dur}ms) ---\n`;
+    out += f.px.map((row, ri) => {
+      const charBorder = ri > 0 && ri % CH === 0 ? '\n' : '';
+      return charBorder + '|' + row.map(v => v ? '█' : '·').join('') + '|';
+    }).join('\n') + '\n\n';
+  });
+
+  const jsonFrames = frames.map(f => ({
+    label: f.label || '',
+    duration: f.dur,
+    pixels: f.px
+  }));
+
+  const exportJSON = {
+    figure_name: name,
+    animation_hint: hint,
+    frames_requested: parseInt(total),
+    width_chars: preset.wc,
+    height_chars: preset.hc,
+    lcd_col: parseInt(document.getElementById('lcd-col').value),
+    lcd_row: parseInt(document.getElementById('lcd-row').value),
+    keyframes: jsonFrames
+  };
+
+  out += `--- JSON ---\n${JSON.stringify(exportJSON, null, 2)}\n=== END EXPORT ===`;
+  return out;
+}
+
+function showExport() {
+  document.getElementById('export-box').textContent = buildExport();
+}
+
+function doExport() {
+  const txt = buildExport();
+  document.getElementById('export-box').textContent = txt;
+  navigator.clipboard.writeText(txt).then(() => {
+    const btn = event.target;
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied!'; btn.classList.add('on');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('on'); }, 2000);
+  }).catch(() => alert('Select all text in the export box and copy manually.'));
+}
+
+// ═══════════════════════════════════════════════════
+// IMPORT
+// ═══════════════════════════════════════════════════
+function doImport() {
+  const raw    = document.getElementById('import-txt').value.trim();
+  const status = document.getElementById('import-status');
+  if (!raw) { status.textContent = '⚠ Nothing pasted.'; status.style.color = '#aa6633'; return; }
+
+  const match = raw.match(/\{[\s\S]*"frames"[\s\S]*\}/);
+  try {
+    const data = JSON.parse(match ? match[0] : raw);
+    if (!data.frames || !Array.isArray(data.frames)) throw new Error('No "frames" array.');
+    importedAnim = data;
+    playFi = 0;
+    status.textContent = `✓ ${data.frames.length} frames loaded for "${data.figure_name || 'figure'}"`;
+    status.style.color = '#00ff88';
+    renderImportedFrame(0);
+    genCode();
+  } catch(e) {
+    status.textContent = '✗ ' + e.message;
+    status.style.color = '#ff4444';
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// CODE GENERATION
+// ═══════════════════════════════════════════════════
+function genCode() {
+  if (!importedAnim) return;
+  const name   = (importedAnim.figure_name || 'anim').replace(/\W+/g, '_');
+  const iframes = importedAnim.frames;
+  let out = `// Animation: "${name}" — ${iframes.length} frames\n`;
+  out += `// Generated by LCD Animator\n\n`;
+  out += `#include <Wire.h>\n#include <LiquidCrystal_I2C.h>\n`;
+  out += `LiquidCrystal_I2C lcd(0x3F, 20, 4);\n\n`;
+
+  iframes.forEach((frame, fi) => {
+    const chars  = frame.chars  || importedAnim.chars || [];
+    const layout = frame.layout || [];
+    out += `void ${name}_f${fi+1}() {\n`;
+    const used = new Set(layout.flat().filter(v => v >= 0));
+    used.forEach(ci => {
+      if (chars[ci]) {
+        out += `  { static byte c[] = {`;
+        out += chars[ci].map(b => `B${b.toString(2).padStart(8,'0')}`).join(',');
+        out += `}; lcd.createChar(${ci},c); }\n`;
+      }
+    });
+    out += `  lcd.clear();\n`;
+    layout.forEach((row, ri) => {
+      let ci = 0;
+      while (ci < row.length) {
+        const v = row[ci];
+        if (v < 0) { ci++; continue; }
+        out += `  lcd.setCursor(${ci},${ri}); lcd.write(byte(${v}));\n`;
+        ci++;
+      }
+    });
+    out += `}\n\n`;
+  });
+
+  out += `const int ${name.toUpperCase()}_N = ${iframes.length};\n`;
+  out += `unsigned int ${name}Dur[] = {${iframes.map(f=>f.duration||300).join(',')}};\n`;
+  out += `void (*${name}F[])() = {${iframes.map((_,i)=>`${name}_f${i+1}`).join(',')}};\n\n`;
+  out += `int ${name}I=0; unsigned long ${name}T=0;\n`;
+  out += `void run_${name}() {\n`;
+  out += `  if(millis()-${name}T>=${name}Dur[${name}I]){\n`;
+  out += `    ${name}T=millis(); ${name}F[${name}I]();\n`;
+  out += `    ${name}I=(${name}I+1)%${name.toUpperCase()}_N;\n`;
+  out += `  }\n}\n\n`;
+  out += `void setup(){lcd.init();lcd.backlight();}\n`;
+  out += `void loop(){run_${name}();}\n`;
+
+  document.getElementById('code-out').textContent = out;
+}
+
+function copyCode() {
+  navigator.clipboard.writeText(document.getElementById('code-out').textContent)
+    .then(() => {
+      const b = event.target, o = b.textContent;
+      b.textContent='✓ Copied!'; setTimeout(()=>b.textContent=o,1500);
+    });
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+buildSizes();
+initCanvas();
+setupCanvas();
+buildTabs();
+buildStrip();
+buildLcd();
+refreshLcd();
+</script>
+</body>
+</html>

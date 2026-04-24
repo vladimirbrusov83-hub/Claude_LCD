@@ -1,19 +1,21 @@
 /*
-  Claude Code Status Monitor — Arduino Firmware v1.2
-  Hardware: Arduino Uno + 20x4 LCD with I2C backpack
+  Claude Code Monitor — Arduino Firmware v2.0
+  Hardware: Arduino Uno + SainSmart LCD2004 (20×4 I2C)
 
-  Features:
-    - Claude Code tool status with animated dots
-    - CPU/RAM usage on row 3, updated every few seconds
+  IDLE SCREEN:
+    Row 0:  "    CLAUDE CODE     "
+    Row 1:  "      MONITOR       "
+    Row 2:  [mascot walks left/right, freezes, runs offscreen]
+    Row 3:  CPU / MEM sysinfo
 
-  WIRING:
-    LCD GND → Arduino GND
-    LCD VCC → Arduino 5V
-    LCD SDA → Arduino A4
-    LCD SCL → Arduino A5
+  STATUS SCREEN (Claude is working):
+    Row 0:  [mascot] CLAUDE CODE
+    Row 1:  <status word>...
+    Row 2:  <detail / filename>
+    Row 3:  CPU / MEM sysinfo
 
-  LIBRARY:
-    Arduino IDE → Tools → Manage Libraries → "LiquidCrystal I2C" by Frank de Brabander
+  MASCOT: 2 chars wide (10×8 px). 4 char slots used (2 walk frames).
+  BEHAVIORS: WALKING · FROZEN · RUNAWAY (runs off screen, returns)
 */
 
 #include <Wire.h>
@@ -21,25 +23,44 @@
 
 LiquidCrystal_I2C lcd(0x3F, 20, 4);
 
-// ── Custom chars: Claude Code diamond mascot (2×2 tile) ──────────────
-byte DIAMOND_TL[8] = { B00000, B00001, B00011, B00111, B01111, B11111, B11111, B11111 };
-byte DIAMOND_TR[8] = { B00000, B10000, B11000, B11100, B11110, B11111, B11111, B11111 };
-byte DIAMOND_BL[8] = { B11111, B11111, B11111, B01111, B00111, B00011, B00001, B00000 };
-byte DIAMOND_BR[8] = { B11111, B11111, B11111, B11110, B11100, B11000, B10000, B00000 };
-byte FULL_BLOCK[8] = { B11111, B11111, B11111, B11111, B11111, B11111, B11111, B11111 };
+// ── Mascot custom chars (4 slots) ─────────────────────────────────────
+//   Frame A — legs down (normal stance)
+byte ML_A[8] = { B00000, B01111, B01011, B11111, B11111, B01111, B01010, B01010 };
+byte MR_A[8] = { B00000, B11100, B10100, B11110, B11110, B11100, B10100, B10100 };
+//   Frame B — alternate legs (outer feet lifted)
+byte ML_B[8] = { B00000, B01111, B01011, B11111, B11111, B01111, B01010, B00010 };
+byte MR_B[8] = { B00000, B11100, B10100, B11110, B11110, B11100, B10100, B10000 };
 
-#define CH_TL    0
-#define CH_TR    1
-#define CH_BL    2
-#define CH_BR    3
-#define CH_BLOCK 4
+#define CH_ML_A  0
+#define CH_MR_A  1
+#define CH_ML_B  2
+#define CH_MR_B  3
 
-// ── Normal mode state ─────────────────────────────────────────────────
-String currentStatus = "";
-String currentDetail = "";
-String sysInfo       = "";
+// ── Serial / display state ─────────────────────────────────────────────
+String  currentStatus = "";
+String  currentDetail = "";
+String  sysInfo       = "";
+bool    idleMode      = true;
+
 unsigned long lastDotTime = 0;
 int dotCount = 0;
+
+// ── Mascot animation state ─────────────────────────────────────────────
+int  mascotCol    = 9;   // left char LCD column (0–18)
+int  mascotDir    = 1;   // +1 = right, -1 = left
+int  mascotFrame  = 0;   // 0 = A, 1 = B
+
+enum Behavior { WALKING, FROZEN, RUNAWAY };
+Behavior behavior = WALKING;
+
+bool          offscreen   = false;
+unsigned long lastMove    = 0;
+unsigned long behaviorEnd = 0;
+unsigned long returnAt    = 0;   // millis() when mascot re-appears after RUNAWAY
+
+#define WALK_MS   280
+#define RUN_MS     55
+#define DOT_MS    400
 
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -47,21 +68,26 @@ void setup() {
   Serial.begin(9600);
   lcd.init();
   lcd.backlight();
-  loadDiamondChars();
 
-  // Splash screen
-  lcd.setCursor(3, 1); lcd.print("[ CLAUDE CODE ]");
-  lcd.setCursor(5, 2); lcd.print("MONITOR v1.2");
-  delay(2500);
+  lcd.createChar(CH_ML_A, ML_A);
+  lcd.createChar(CH_MR_A, MR_A);
+  lcd.createChar(CH_ML_B, ML_B);
+  lcd.createChar(CH_MR_B, MR_B);
+
+  // Splash
   lcd.clear();
+  lcd.setCursor(3, 1); lcd.print("[ CLAUDE CODE ]");
+  lcd.setCursor(5, 2); lcd.print("MONITOR v2.0");
+  delay(2000);
 
+  randomSeed(analogRead(0));
   showIdle();
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 void loop() {
 
-  // ── Serial input ────────────────────────────────────────────────────
+  // ── Serial input ──────────────────────────────────────────────────
   if (Serial.available()) {
     String line = Serial.readStringUntil('\n');
     line.trim();
@@ -69,19 +95,20 @@ void loop() {
     if (line.startsWith("STATUS:")) {
       currentStatus = line.substring(7);
       currentDetail = "";
-      dotCount = 0;
+      dotCount      = 0;
+      idleMode      = false;
       showStatus();
 
     } else if (line.startsWith("DETAIL:")) {
       currentDetail = line.substring(7);
       if ((int)currentDetail.length() > 18)
         currentDetail = currentDetail.substring(0, 15) + "...";
-      if (currentStatus.length() > 0) showStatus();
+      if (!idleMode) showStatus();
 
     } else if (line == "CLEAR") {
       currentStatus = "";
       currentDetail = "";
-      showIdle();
+      if (!idleMode) { idleMode = true; showIdle(); }
 
     } else if (line.startsWith("SYSINFO:")) {
       sysInfo = line.substring(8);
@@ -89,87 +116,166 @@ void loop() {
     }
   }
 
-  // ── Dot animation ───────────────────────────────────────────────────
-  if (currentStatus.length() > 0 && millis() - lastDotTime > 400) {
+  // ── Dot animation (status mode only) ─────────────────────────────
+  if (!idleMode && currentStatus.length() > 0
+      && millis() - lastDotTime > DOT_MS) {
     lastDotTime = millis();
-    dotCount = (dotCount + 1) % 4;
+    dotCount    = (dotCount + 1) % 4;
     animateDots();
   }
+
+  // ── Mascot idle animation ─────────────────────────────────────────
+  if (idleMode) updateMascot();
 }
 
 
 // ═══════════════════════════════════════════════════════════════════════
-// Normal display
+// SCREENS
 
-void loadDiamondChars() {
-  lcd.createChar(CH_TL, DIAMOND_TL);
-  lcd.createChar(CH_TR, DIAMOND_TR);
-  lcd.createChar(CH_BL, DIAMOND_BL);
-  lcd.createChar(CH_BR, DIAMOND_BR);
-  lcd.createChar(CH_BLOCK, FULL_BLOCK);
-}
-
-//  Row 0: ────────────────────
-//  Row 1:    ◆◆ Claude Code
-//  Row 2:    ◆◆   Monitor
-//  Row 3:  CPU: 8%  MEM: 45%
 void showIdle() {
   lcd.clear();
-  lcd.setCursor(0, 0); lcd.print("--------------------");
-  lcd.setCursor(3, 1); lcd.write(CH_TL); lcd.write(CH_TR); lcd.print(" Claude Code");
-  lcd.setCursor(3, 2); lcd.write(CH_BL); lcd.write(CH_BR); lcd.print("   Monitor");
+  lcd.setCursor(0, 0); lcd.print("    CLAUDE CODE     ");
+  lcd.setCursor(0, 1); lcd.print("      MONITOR       ");
+  // Row 2 drawn by updateMascot()
   updateSysInfo();
+
+  // Reset mascot
+  mascotCol    = 9;
+  mascotDir    = 1;
+  mascotFrame  = 0;
+  offscreen    = false;
+  behavior     = WALKING;
+  behaviorEnd  = millis() + random(1000, 3000);
+
+  drawMascot(mascotCol, mascotFrame);
 }
 
-//  Row 0:  ◆◆ CLAUDE CODE
-//  Row 1:     <status>...
-//  Row 2:     <detail>
-//  Row 3:  CPU: 8%  MEM: 45%
 void showStatus() {
   lcd.clear();
 
-  // Row 0 — header with diamond mascot
+  // Row 0: mascot (static, frame A) + label
   lcd.setCursor(0, 0);
-  lcd.write(CH_TL); lcd.write(CH_TR);
+  lcd.write(CH_ML_A); lcd.write(CH_MR_A);
   lcd.print(" CLAUDE CODE");
 
-  // Row 1 — status word, centered, with room for animated dots
-  lcd.setCursor(0, 1);
-  lcd.print("                    ");
-  int statusLen   = currentStatus.length();
-  int statusStart = (20 - statusLen - 3) / 2;
-  if (statusStart < 0) statusStart = 0;
-  lcd.setCursor(statusStart, 1);
-  lcd.print(currentStatus);
+  // Row 1: status centered with dots
+  int sLen   = currentStatus.length();
+  int sStart = max(0, (20 - sLen - 3) / 2);
+  lcd.setCursor(0, 1); lcd.print("                    ");
+  lcd.setCursor(sStart, 1); lcd.print(currentStatus);
 
-  // Row 2 — detail / filename
-  lcd.setCursor(0, 2);
-  lcd.print("                    ");
+  // Row 2: detail
+  lcd.setCursor(0, 2); lcd.print("                    ");
   if (currentDetail.length() > 0) {
-    lcd.setCursor(1, 2);
-    lcd.print(currentDetail);
+    lcd.setCursor(1, 2); lcd.print(currentDetail);
   }
 
   updateSysInfo();
   animateDots();
 }
 
-// Write sysinfo string to row 3 (padded to 20 chars)
 void updateSysInfo() {
   lcd.setCursor(0, 3);
-  String padded = sysInfo;
-  while ((int)padded.length() < 20) padded += " ";
-  if ((int)padded.length() > 20) padded = padded.substring(0, 20);
-  lcd.print(padded);
+  String s = sysInfo;
+  while ((int)s.length() < 20) s += " ";
+  if ((int)s.length() > 20) s = s.substring(0, 20);
+  lcd.print(s);
 }
 
 void animateDots() {
   if (currentStatus.length() == 0) return;
-  int statusLen   = currentStatus.length();
-  int statusStart = (20 - statusLen - 3) / 2;
-  if (statusStart < 0) statusStart = 0;
-  int dotsPos = statusStart + statusLen;
-  lcd.setCursor(dotsPos, 1); lcd.print("   ");
-  lcd.setCursor(dotsPos, 1);
+  int sLen   = currentStatus.length();
+  int sStart = max(0, (20 - sLen - 3) / 2);
+  int dPos   = sStart + sLen;
+  lcd.setCursor(dPos, 1); lcd.print("   ");
+  lcd.setCursor(dPos, 1);
   for (int i = 0; i < dotCount; i++) lcd.print(".");
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// MASCOT ANIMATION
+
+void drawMascot(int col, int frame) {
+  if (col < 0 || col + 1 > 19) return;
+  lcd.setCursor(col, 2);
+  if (frame == 0) { lcd.write(CH_ML_A); lcd.write(CH_MR_A); }
+  else            { lcd.write(CH_ML_B); lcd.write(CH_MR_B); }
+}
+
+void eraseMascot(int col) {
+  if (col < 0 || col + 1 > 19) return;
+  lcd.setCursor(col, 2);
+  lcd.print("  ");
+}
+
+void pickBehavior() {
+  unsigned long now = millis();
+  int r = random(100);
+
+  if (r < 55) {
+    behavior = WALKING;
+    if (random(3) == 0) mascotDir = -mascotDir;   // occasional direction flip
+    behaviorEnd = now + random(800, 4000);
+
+  } else if (r < 80) {
+    behavior = FROZEN;
+    behaviorEnd = now + random(800, 2800);
+
+  } else {
+    behavior = RUNAWAY;
+    behaviorEnd = now + 200000UL;  // will end when offscreen logic fires
+  }
+}
+
+void updateMascot() {
+  unsigned long now = millis();
+
+  // ── Waiting off screen ──────────────────────────────────────────────
+  if (offscreen) {
+    if (now >= returnAt) {
+      offscreen   = false;
+      // Appear from opposite edge, same direction (wrap-around feel)
+      mascotCol   = (mascotDir > 0) ? 0 : 18;
+      behavior    = WALKING;
+      behaviorEnd = now + random(1000, 3000);
+      drawMascot(mascotCol, mascotFrame);
+    }
+    return;
+  }
+
+  // ── State transition ────────────────────────────────────────────────
+  if (now >= behaviorEnd) pickBehavior();
+
+  // ── Step timer ──────────────────────────────────────────────────────
+  unsigned long interval = (behavior == RUNAWAY) ? RUN_MS : WALK_MS;
+  if (now - lastMove < interval) return;
+  lastMove = now;
+
+  // ── Frozen: hold frame A, no movement ───────────────────────────────
+  if (behavior == FROZEN) {
+    drawMascot(mascotCol, 0);
+    return;
+  }
+
+  // ── Move ────────────────────────────────────────────────────────────
+  eraseMascot(mascotCol);
+  mascotCol  += mascotDir;
+  mascotFrame = 1 - mascotFrame;
+
+  // ── Edge handling ───────────────────────────────────────────────────
+  if (mascotCol < 0 || mascotCol > 18) {
+    if (behavior == RUNAWAY) {
+      offscreen = true;
+      returnAt  = now + random(2000, 3500);
+    } else {
+      // Bounce
+      mascotDir  = -mascotDir;
+      mascotCol += 2 * mascotDir;
+      drawMascot(mascotCol, mascotFrame);
+    }
+    return;
+  }
+
+  drawMascot(mascotCol, mascotFrame);
 }

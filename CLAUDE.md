@@ -28,7 +28,7 @@ Claude Code hooks → shell scripts → FIFO /tmp/claude_lcd → monitor.py → 
 | `hook_stop.sh` | Stop hook. Kills cycler, shows "Churned Xm Xs". |
 | `hook.sh` | PreToolUse hook. Maps tool name → status string. Writes STATUS:/DETAIL: to FIFO. |
 | `cycler.sh` | Background loop. Sends random words to FIFO every 6–10s while Claude thinks. |
-| `claude_monitor/claude_monitor.ino` | Arduino firmware v1.2. Reads serial, renders on LCD. |
+| `claude_monitor/claude_monitor.ino` | Arduino firmware v2.0. Idle mascot animation + status display. |
 | `lcd_designer.html` | Browser tool to design custom chars + animations. Open with `open lcd_designer.html`. |
 | `i2c_scanner.ino` | Utility sketch to find LCD I2C address (0x27 or 0x3F). |
 | `activity_watcher.py` | Optional. Sends CPU/RAM to LCD on mouse/keyboard activity. |
@@ -94,8 +94,22 @@ Pacing in circles, Reticulating splines, Ionizing, Weighing approaches
 
 ## Flash firmware
 
-Arduino IDE → open `claude_monitor/claude_monitor.ino` → Board: Uno, Port: `/dev/cu.usbmodem*` → Upload.  
-Press the **reset button** on the Uno right when IDE shows "Uploading..." if you get errors.
+**This Uno does NOT respond to the reset button trick. Use this method instead:**
+
+1. Kill monitor.py first: `pkill -f monitor.py`
+2. Compile the sketch:
+   ```bash
+   arduino-cli compile --fqbn arduino:avr:uno --output-dir /tmp/claude_build ~/Documents/Display/claude_monitor/
+   ```
+3. **Unplug** the USB cable from the Mac
+4. Have the upload command ready (don't run yet):
+   ```bash
+   avrdude -q -q -p atmega328p -c arduino -P /dev/cu.usbmodem143201 -b 115200 -D -U flash:w:/tmp/claude_build/claude_monitor.ino.hex:i
+   ```
+5. **Plug in** the USB cable
+6. **Immediately** (within ~1 second) hit Enter
+
+The Arduino sits in bootloader mode for ~1 second on power-up. That's the upload window.
 
 ## Python dependency
 
